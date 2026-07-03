@@ -1,2 +1,4 @@
 *.nii.gz
 *.nii
+__pycache__/
+.venv/
