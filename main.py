@@ -573,55 +573,55 @@ def estimate_tangent_from_largest_radius_branch(
     k = min(5, len(pts) - 1)
     return unit(pts[k] - pts[0]).astype(np.float32)
 
-def estimate_tangent_from_graph(G, node, exclude_node=None):
-    """
-    Estimate local tangent at a graph node.
+# def estimate_tangent_from_graph(G, node, exclude_node=None):
+#     """
+#     Estimate local tangent at a graph node.
 
-    Tangent points away from `node` along the selected existing branch.
-    Uses the longest adjacent edge after excluding `exclude_node`.
-    """
-    p0 = np.asarray(G.nodes[node]["xyz"], dtype=np.float32)
+#     Tangent points away from `node` along the selected existing branch.
+#     Uses the longest adjacent edge after excluding `exclude_node`.
+#     """
+#     p0 = np.asarray(G.nodes[node]["xyz"], dtype=np.float32)
 
-    best_nb = None
-    best_pts = None
-    best_len = -1.0
+#     best_nb = None
+#     best_pts = None
+#     best_len = -1.0
 
-    for nb in G.neighbors(node):
-        if exclude_node is not None and nb == exclude_node:
-            continue
+#     for nb in G.neighbors(node):
+#         if exclude_node is not None and nb == exclude_node:
+#             continue
 
-        data = G.edges[node, nb]
+#         data = G.edges[node, nb]
 
-        if not data.get("active", True):
-            continue
+#         if not data.get("active", True):
+#             continue
 
-        pts = np.asarray(data.get("points_xyz", []), dtype=np.float32)
+#         pts = np.asarray(data.get("points_xyz", []), dtype=np.float32)
 
-        if len(pts) >= 2:
-            length = float(np.sum(np.linalg.norm(np.diff(pts, axis=0), axis=1)))
-        else:
-            p1 = np.asarray(G.nodes[nb]["xyz"], dtype=np.float32)
-            length = float(np.linalg.norm(p1 - p0))
+#         if len(pts) >= 2:
+#             length = float(np.sum(np.linalg.norm(np.diff(pts, axis=0), axis=1)))
+#         else:
+#             p1 = np.asarray(G.nodes[nb]["xyz"], dtype=np.float32)
+#             length = float(np.linalg.norm(p1 - p0))
 
-        if length > best_len:
-            best_len = length
-            best_nb = nb
-            best_pts = pts
+#         if length > best_len:
+#             best_len = length
+#             best_nb = nb
+#             best_pts = pts
 
-    if best_nb is None:
-        return np.zeros(3, dtype=np.float32)
+#     if best_nb is None:
+#         return np.zeros(3, dtype=np.float32)
 
-    if best_pts is not None and len(best_pts) >= 2:
-        pts = best_pts
+#     if best_pts is not None and len(best_pts) >= 2:
+#         pts = best_pts
 
-        # orient polyline so pts[0] is closest to node
-        if np.linalg.norm(pts[0] - p0) > np.linalg.norm(pts[-1] - p0):
-            pts = pts[::-1]
+#         # orient polyline so pts[0] is closest to node
+#         if np.linalg.norm(pts[0] - p0) > np.linalg.norm(pts[-1] - p0):
+#             pts = pts[::-1]
 
-        return unit(pts[1] - pts[0]).astype(np.float32)
+#         return unit(pts[1] - pts[0]).astype(np.float32)
 
-    p1 = np.asarray(G.nodes[best_nb]["xyz"], dtype=np.float32)
-    return unit(p1 - p0).astype(np.float32)
+#     p1 = np.asarray(G.nodes[best_nb]["xyz"], dtype=np.float32)
+#     return unit(p1 - p0).astype(np.float32)
 
 
 def nearest_edge_to_point(G, picked_point, active_only=True):
@@ -918,21 +918,11 @@ def score_reconnection_candidate(G, source, target, forbidden_nodes=None):
     if dist < 1e-8:
         return None
 
-    # raw_t0 = estimate_tangent_from_graph(G, source)
-    # raw_t1 = -estimate_tangent_from_graph(G, target)
-
     raw_t0 = -estimate_tangent_from_largest_radius_branch(G, source)
     raw_t1 = estimate_tangent_from_largest_radius_branch(G, target)
 
     if raw_t0 is None or raw_t1 is None:
-    # if source_tangent is None or target_tangent is None:
         return None
-
-
-    # t0 = -orient_tangent_toward(raw_t0, reconnect_vec)
-    # t1 = -orient_tangent_toward(raw_t1, reconnect_vec)
-    # t0 = source_tangent
-    # t1 = -target_tangent
 
     control_pts, simvc_info = optimize_bezier_simvc_nd(
         p0,
@@ -953,12 +943,9 @@ def score_reconnection_candidate(G, source, target, forbidden_nodes=None):
     # Actual bridge endpoint tangents.
     bridge_start_tangent = curve_pts[1] - curve_pts[0]
     bridge_end_tangent = curve_pts[-1] - curve_pts[-2]
-    desired_start_tangent = raw_t0
-    desired_end_tangent = -raw_t1
 
-    a1 = angle_deg(desired_start_tangent, bridge_start_tangent)
+    a1 = angle_deg(raw_t0, bridge_start_tangent)
     a2 = angle_deg(raw_t1, bridge_end_tangent)
-    # a2 = angle_deg(desired_end_tangent, bridge_end_tangent)
 
     angle_penalty = (a1 + a2) / 180.0
 
@@ -1053,22 +1040,9 @@ def add_curved_repair_edge(G, source, target, source_exclude=None, target_exclud
             repair_curve = np.asarray(best["bridge_points_xyz"], dtype=np.float32)
 
     if repair_curve is None:
-            reconnect_vec = p1 - p0
-            # raw_t0 = -estimate_tangent_from_graph(
-            #     G,
-            #     source,
-            #     exclude_node=source_exclude,
-            # )
-
-            # raw_t1 = -estimate_tangent_from_graph(
-            #     G,
-            #     target,
-            #     exclude_node=target_exclude,
-            # )
             raw_t0 = -estimate_tangent_from_largest_radius_branch(G, source)
             raw_t1 = estimate_tangent_from_largest_radius_branch(G, target)
-            # t0 = orient_tangent_toward(raw_t0, reconnect_vec)
-            # t1 = -orient_tangent_toward(raw_t1, reconnect_vec)
+
             control_pts, simvc_info = optimize_bezier_simvc_nd(
                 p0,
                 p1,
